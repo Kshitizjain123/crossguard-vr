@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CrossGuard – Pedestrian Safety VR</title>
+  <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+  <style>
+    body { margin: 0; background: #000; overflow: hidden; }
+
+    /* DOM overlay – shows in flat mode and WebXR dom-overlay mode */
+    #hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      display: none;
+      z-index: 9999;
+    }
+    #distraction-label {
+      position: absolute;
+      top: 24px; left: 24px;
+      color: #ff3333;
+      font-family: 'Courier New', monospace;
+      font-size: clamp(14px, 2vw, 20px);
+      font-weight: bold;
+      line-height: 1.4;
+      opacity: 0;
+      transition: opacity 0.4s;
+      text-shadow: 0 0 8px #ff0000;
+    }
+    /* Right-side glow bar matching CrossGuard_Capture_cue reference */
+    #right-cue {
+      position: absolute;
+      right: 0; top: 0;
+      width: 10px; height: 100%;
+      background: linear-gradient(to left, #00ff55 0%, rgba(0,255,85,0.4) 60%, transparent 100%);
+      opacity: 0;
+      transition: opacity 0.35s;
+    }
+    #right-cue::before {
+      content: '';
+      position: absolute;
+      right: 0; top: 0;
+      width: 60px; height: 100%;
+      background: linear-gradient(to left, rgba(0,255,85,0.25) 0%, transparent 100%);
+    }
+    /* Corner bracket accent */
+    #corner-bracket {
+      position: absolute;
+      right: 14px; top: 14px;
+      width: 40px; height: 40px;
+      border-top: 3px solid #00ff55;
+      border-right: 3px solid #00ff55;
+      opacity: 0;
+      transition: opacity 0.35s;
+    }
+    /* Bottom instruction */
+    #instruction {
+      position: absolute;
+      bottom: 30px;
+      width: 100%;
+      text-align: center;
+      color: rgba(255,255,255,0.7);
+      font-family: sans-serif;
+      font-size: 14px;
+    }
+    #replay-btn {
+      position: absolute;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 24px;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.4);
+      color: #fff;
+      font-family: sans-serif;
+      font-size: 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      pointer-events: all;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+<!-- DOM Overlay HUD (works flat + in WebXR dom-overlay) -->
+<div id="hud">
+  <div id="distraction-label">Distraction: ON<br><span style="font-size:0.8em;color:#ff7777">Phone detected</span></div>
+  <div id="right-cue"></div>
+  <div id="corner-bracket"></div>
+  <div id="instruction">Look left – vehicle approaching</div>
+  <button id="replay-btn">Replay Scene</button>
+</div>
+
+<a-scene
+  id="scene"
+  webxr="requiredFeatures: local-floor; optionalFeatures: dom-overlay,bounded-floor; overlayElement: #hud"
+  renderer="antialias: true; colorManagement: true; physicallyCorrectLights: true; logarithmicDepthBuffer: true"
+  shadow="type: pcfsoft; enabled: true"
+  fog="type: linear; color: #b0cce0; near: 30; far: 90"
+  vr-mode-ui="enterVRButton: #enter-vr-btn">
+
+  <a-assets timeout="5000">
+    <canvas id="phone-canvas" width="256" height="512"></canvas>
+  </a-assets>
+
+  <!-- ===================== LIGHTING ===================== -->
+  <a-light type="ambient" color="#d0e8ff" intensity="0.55"></a-light>
+  <a-light type="directional" color="#fff8e8" intensity="1.1"
+    position="-3 10 8" cast-shadow="true"
+    shadow-camera-left="-20" shadow-camera-right="20"
+    shadow-camera-top="20" shadow-camera-bottom="-20">
+  </a-light>
+  <!-- Soft fill from opposite side -->
+  <a-light type="directional" color="#cce0ff" intensity="0.3" position="5 6 -5"></a-light>
+
+  <!-- ===================== SKY ===================== -->
+  <a-sky color="#7ab8d8"></a-sky>
+  <!-- Cloud-like haze box far back -->
+  <a-box position="0 15 -60" width="200" height="20" depth="1" color="#c8dff0" material="opacity:0.25;transparent:true"></a-box>
+
+  <!-- ===================== GROUND / ROAD ===================== -->
+  <!-- Road surface runs along X axis (car will move left→right in X) -->
+  <!-- Road is at Z=-5, road runs infinitely along X, width ~8 in Z -->
+  <a-box position="0 -0.01 -5" width="120" height="0.02" depth="8" color="#2e2e2e" receive-shadow="true"></a-box>
+  <!-- Road centre line -->
+  <a-box position="0 0.01 -5" width="120" height="0.01" depth="0.12" color="#e8c820"
+    material="emissive:#e8c820;emissiveIntensity:0.1"></a-box>
+  <!-- Road lane dashes -->
+  <a-entity position="0 0.01 -5">
+    <a-box position="-30 0 0" width="3" height="0.01" depth="0.12" color="#ffffff" material="opacity:0.6;transparent:true"></a-box>
+    <a-box position="-20 0 0" width="3" height="0.01" depth="0.12" color="#ffffff" material="opacity:0.6;transparent:true"></a-box>
+    <a-box position="-10 0 0" width="3" height="0.01" depth="0.12" color="#ffffff" material="opacity:0.6;transparent:true"></a-box>
+    <a-box position="10 0 0"  width="3" height="0.01" depth="0.12" color="#ffffff" material="opacity:0.6;transparent:true"></a-box>
+    <a-box position="20 0 0"  width="3" height="0.01" depth="0.12" color="#ffffff" material="opacity:0.6;transparent:true"></a-box>
+    <a-box position="30 0 0"  width="3" height="0.01" depth="0.12" color="#ffffff" material="opacity:0.6;transparent:true"></a-box>
+  </a-entity>
+
+  <!-- Near sidewalk (player stands here) -->
+  <a-box position="0 0.08 -0.5" width="120" height="0.16" depth="3" color="#b8b0a0" receive-shadow="true"></a-box>
+  <!-- Kerb edge -->
+  <a-box position="0 0.12 -2" width="120" height="0.08" depth="0.15" color="#999090"></a-box>
+
+  <!-- Far sidewalk -->
+  <a-box position="0 0.08 -11.5" width="120" height="0.16" depth="5" color="#b8b0a0" receive-shadow="true"></a-box>
+  <a-box position="0 0.12 -9" width="120" height="0.08" depth="0.15" color="#999090"></a-box>
+
+  <!-- ===================== ZEBRA CROSSING ===================== -->
+  <!-- Stripes perpendicular to road: run along Z (-2 to -8), spaced along X -->
+  <!-- Centred at x=0, straddles the road -->
+  <a-entity id="zebra" position="0 0.015 0">
+    <a-box position="-4.5 0 -5" width="1.1" height="0.01" depth="6.5" color="#f8f8f8"></a-box>
+    <a-box position="-3.0 0 -5" width="1.1" height="0.01" depth="6.5" color="#f8f8f8"></a-box>
+    <a-box position="-1.5 0 -5" width="1.1" height="0.01" depth="6.5" color="#f8f8f8"></a-box>
+    <a-box position=" 0.0 0 -5" width="1.1" height="0.01" depth="6.5" color="#f8f8f8"></a-box>
+    <a-box position=" 1.5 0 -5" width="1.1" height="0.01" depth="6.5" color="#f8f8f8"></a-box>
+    <a-box position=" 3.0 0 -5" width="1.1" height="0.01" depth="6.5" color="#f8f8f8"></a-box>
+    <a-box position=" 4.5 0 -5" width="1.1" height="0.01" depth="6.5" color="#f8f8f8"></a-box>
+  </a-entity>
+
+  <!-- ===================== BUILDINGS ===================== -->
+  <!-- Far side of road, various heights -->
+  <a-box position="-25 6 -16" width="14" height="12" depth="8" color="#8a9aaa" cast-shadow="true"></a-box>
+  <a-box position="-10 9 -17" width="10" height="18" depth="7" color="#9a8a7a" cast-shadow="true"></a-box>
+  <a-box position="2  5 -15"  width="8"  height="10" depth="7" color="#7a8a9a" cast-shadow="true"></a-box>
+  <a-box position="13 8 -16"  width="11" height="16" depth="7" color="#8a7a8a" cast-shadow="true"></a-box>
+  <a-box position="26 4 -15"  width="10" height="8"  depth="7" color="#9aaa8a" cast-shadow="true"></a-box>
+  <!-- Windows (emissive planes on building faces) -->
+  <a-entity position="-10 9 -13.5">
+    <a-box position="-2 2 0" width="1" height="0.8" depth="0.05" color="#ffe0a0" material="emissive:#ffe0a0;emissiveIntensity:0.3"></a-box>
+    <a-box position="0  2 0" width="1" height="0.8" depth="0.05" color="#ffe0a0" material="emissive:#ffe0a0;emissiveIntensity:0.3"></a-box>
+    <a-box position="2  2 0" width="1" height="0.8" depth="0.05" color="#ffe0a0" material="emissive:#ffe0a0;emissiveIntensity:0.3"></a-box>
+    <a-box position="-2 0 0" width="1" height="0.8" depth="0.05" color="#a0c8ff" material="emissive:#a0c8ff;emissiveIntensity:0.2"></a-box>
+    <a-box position="2  0 0" width="1" height="0.8" depth="0.05" color="#ffe0a0" material="emissive:#ffe0a0;emissiveIntensity:0.3"></a-box>
+  </a-entity>
+
+  <!-- Near side buildings (behind player, at +Z) -->
+  <a-box position="-20 5 8"  width="16" height="10" depth="10" color="#a09080" cast-shadow="true"></a-box>
+  <a-box position="18  4 8"  width="14" height="8"  depth="10" color="#90a090" cast-shadow="true"></a-box>
+
+  <!-- ===================== LAMP POSTS ===================== -->
+  <a-entity position="-6 0 -1.5">
+    <a-cylinder radius="0.05" height="5" color="#555" cast-shadow="true"></a-cylinder>
+    <a-sphere position="0 2.6 0" radius="0.18" color="#ffffc0" material="emissive:#ffffc0;emissiveIntensity:0.8"></a-sphere>
+    <a-light type="point" position="0 2.6 0" color="#ffffd0" intensity="1.2" distance="12"></a-light>
+  </a-entity>
+  <a-entity position="6 0 -1.5">
+    <a-cylinder radius="0.05" height="5" color="#555" cast-shadow="true"></a-cylinder>
+    <a-sphere position="0 2.6 0" radius="0.18" color="#ffffc0" material="emissive:#ffffc0;emissiveIntensity:0.8"></a-sphere>
+    <a-light type="point" position="0 2.6 0" color="#ffffd0" intensity="1.2" distance="12"></a-light>
+  </a-entity>
+
+  <!-- ===================== TRAFFIC LIGHT ===================== -->
+  <a-entity position="-5.5 0 -1.8">
+    <a-cylinder radius="0.06" height="5.5" color="#444"></a-cylinder>
+    <a-box position="0 2.85 0" width="0.35" height="1.1" depth="0.28" color="#222"></a-box>
+    <!-- Red (top) -->
+    <a-sphere id="tl-red"   position="0 3.3  0.15" radius="0.1" color="#ff2200" material="emissive:#ff2200;emissiveIntensity:0.8"></a-sphere>
+    <!-- Amber -->
+    <a-sphere id="tl-amber" position="0 3.0  0.15" radius="0.1" color="#333" material="emissive:#000000;emissiveIntensity:0"></a-sphere>
+    <!-- Green -->
+    <a-sphere id="tl-green" position="0 2.7  0.15" radius="0.1" color="#333" material="emissive:#000000;emissiveIntensity:0"></a-sphere>
+  </a-entity>
+
+  <!-- Pedestrian sign post -->
+  <a-entity position="5.5 0 -1.8">
+    <a-cylinder radius="0.04" height="3.5" color="#555"></a-cylinder>
+    <a-box position="0 1.9 0" width="0.45" height="0.45" depth="0.05" color="#2255cc"></a-box>
+    <a-text value="CROSS\nCAREFULLY" position="0 1.9 0.03" align="center" width="1.2" color="#ffffff" wrap-count="10"></a-text>
+  </a-entity>
+
+  <!-- ===================== CAR ===================== -->
+  <!-- Starts far to the right (+X), drives left (−X), passing at Z=−5 -->
+  <a-entity id="car" position="55 0 -5">
+    <!-- Main body -->
+    <a-box position="0 0.55 0" width="4.6" height="0.9" depth="2.1" color="#c0392b" cast-shadow="true" material="roughness:0.5;metalness:0.3"></a-box>
+    <!-- Cabin -->
+    <a-box position="0.2 1.18 0.05" width="2.8" height="0.65" depth="1.85" color="#a52a1f" cast-shadow="true"></a-box>
+    <!-- Windscreen front -->
+    <a-box position="-1.2 1.15 0" width="0.08" height="0.55" depth="1.65" color="#88ccff" material="opacity:0.55;transparent:true;roughness:0.05"></a-box>
+    <!-- Rear window -->
+    <a-box position="1.45 1.15 0" width="0.08" height="0.55" depth="1.65" color="#88ccff" material="opacity:0.4;transparent:true;roughness:0.05"></a-box>
+    <!-- Side windows -->
+    <a-box position="0.2 1.2 -1.0" width="2.4" height="0.48" depth="0.06" color="#aaddf0" material="opacity:0.45;transparent:true"></a-box>
+    <a-box position="0.2 1.2  1.0" width="2.4" height="0.48" depth="0.06" color="#aaddf0" material="opacity:0.45;transparent:true"></a-box>
+    <!-- Wheels -->
+    <a-cylinder position="-1.5 0.32 -1.0" radius="0.32" height="0.22" rotation="90 0 0" color="#111" cast-shadow="true"></a-cylinder>
+    <a-cylinder position="-1.5 0.32  1.0" radius="0.32" height="0.22" rotation="90 0 0" color="#111" cast-shadow="true"></a-cylinder>
+    <a-cylinder position=" 1.5 0.32 -1.0" radius="0.32" height="0.22" rotation="90 0 0" color="#111" cast-shadow="true"></a-cylinder>
+    <a-cylinder position=" 1.5 0.32  1.0" radius="0.32" height="0.22" rotation="90 0 0" color="#111" cast-shadow="true"></a-cylinder>
+    <!-- Wheel arches -->
+    <a-box position="-1.5 0.42 -1.0" width="0.7" height="0.2" depth="0.26" color="#a52a1f"></a-box>
+    <a-box position="-1.5 0.42  1.0" width="0.7" height="0.2" depth="0.26" color="#a52a1f"></a-box>
+    <a-box position=" 1.5 0.42 -1.0" width="0.7" height="0.2" depth="0.26" color="#a52a1f"></a-box>
+    <a-box position=" 1.5 0.42  1.0" width="0.7" height="0.2" depth="0.26" color="#a52a1f"></a-box>
+    <!-- Headlights (face -X direction since car moves from +X to -X) -->
+    <a-sphere position="-2.32 0.55 -0.6" radius="0.14" color="#ffffd0" material="emissive:#ffffd0;emissiveIntensity:1.2"></a-sphere>
+    <a-sphere position="-2.32 0.55  0.6" radius="0.14" color="#ffffd0" material="emissive:#ffffd0;emissiveIntensity:1.2"></a-sphere>
+    <a-light type="spot" id="car-headlight-l" position="-2.3 0.55 -0.6" rotation="0 90 0" angle="25" intensity="2" distance="18" color="#ffffd0"></a-light>
+    <a-light type="spot" id="car-headlight-r" position="-2.3 0.55  0.6" rotation="0 90 0" angle="25" intensity="2" distance="18" color="#ffffd0"></a-light>
+    <!-- Tail lights -->
+    <a-sphere position="2.32 0.55 -0.6" radius="0.12" color="#ff2200" material="emissive:#ff2200;emissiveIntensity:0.7"></a-sphere>
+    <a-sphere position="2.32 0.55  0.6" radius="0.12" color="#ff2200" material="emissive:#ff2200;emissiveIntensity:0.7"></a-sphere>
+    <!-- Front bumper -->
+    <a-box position="-2.35 0.28 0" width="0.1" height="0.25" depth="1.9" color="#888" material="roughness:0.3;metalness:0.7"></a-box>
+    <!-- Number plate -->
+    <a-box position="-2.36 0.28 0" width="0.05" height="0.18" depth="0.6" color="#ffffcc"></a-box>
+  </a-entity>
+
+  <!-- ===================== CAMERA / PLAYER ===================== -->
+  <a-entity id="rig" position="0 0 0">
+    <a-camera id="cam"
+      position="0 1.6 0"
+      look-controls="pointerLockEnabled: false"
+      wasd-controls="enabled: false">
+
+      <!-- ===== PHONE IN HAND ===== -->
+      <!-- Positioned lower-right in camera space, angled like held naturally -->
+      <a-entity id="phone-hand"
+        position="0.24 -0.31 -0.46"
+        rotation="-8 -18 6">
+
+        <!-- Hand / wrist block (skin-toned, simplified) -->
+        <a-box position="0 -0.13 0.005"
+          width="0.11" height="0.1" depth="0.035"
+          color="#d4956a"
+          material="roughness:0.9;metalness:0">
+        </a-box>
+        <!-- Fingers (top of hand, subtle) -->
+        <a-box position="-0.03 -0.085 0.01" width="0.018" height="0.04" depth="0.025" color="#c98858" material="roughness:0.9"></a-box>
+        <a-box position="-0.01 -0.082 0.01" width="0.018" height="0.04" depth="0.025" color="#c98858" material="roughness:0.9"></a-box>
+        <a-box position="0.01  -0.082 0.01" width="0.018" height="0.04" depth="0.025" color="#c98858" material="roughness:0.9"></a-box>
+        <a-box position="0.03  -0.085 0.01" width="0.018" height="0.035" depth="0.025" color="#c98858" material="roughness:0.9"></a-box>
+
+        <!-- Phone chassis (dark aluminium) -->
+        <a-box id="phone-body"
+          width="0.092" height="0.19" depth="0.009"
+          color="#111"
+          material="roughness:0.25;metalness:0.85">
+        </a-box>
+        <!-- Phone edge highlight -->
+        <a-box position="0 0 0.001" width="0.088" height="0.186" depth="0.001" color="#333" material="roughness:0.1;metalness:1"></a-box>
+        <!-- Camera bump rear -->
+        <a-box position="0.025 0.065 -0.006" width="0.022" height="0.022" depth="0.003" color="#222" material="roughness:0.1;metalness:0.9"></a-box>
+
+        <!-- Screen (canvas texture) -->
+        <a-plane id="phone-screen"
+          width="0.079" height="0.165"
+          position="0 0.002 0.0052"
+          material="src: #phone-canvas; roughness:0.05; emissive:#224488; emissiveIntensity:0.15">
+        </a-plane>
+        <!-- Screen edge bezel -->
+        <a-box position="0 0.002 0.005" width="0.083" height="0.169" depth="0.0008" color="#000"></a-box>
+
+        <!-- Screen glow light -->
+        <a-light id="phone-light" type="point" position="0 0 0.06"
+          color="#5577ff" intensity="0.35" distance="0.5">
+        </a-light>
+      </a-entity>
+
+      <!-- ===== VR HUD CUE (camera-attached, right-side) ===== -->
+      <!-- Visible only in VR when cue triggers; mirrors DOM overlay for flat mode -->
+      <a-entity id="vr-hud" visible="false">
+        <!-- Right-edge glow bar -->
+        <a-plane position="0.44 0 -0.55"
+          width="0.018" height="0.7"
+          material="color:#00ff55;opacity:0.95;transparent:true;emissive:#00ff55;emissiveIntensity:1.2;side:double">
+        </a-plane>
+        <!-- Glow spread (wider, more transparent) -->
+        <a-plane position="0.40 0 -0.551"
+          width="0.1" height="0.7"
+          material="color:#00ff55;opacity:0.12;transparent:true;emissive:#00ff55;emissiveIntensity:0.6;side:double">
+        </a-plane>
+        <!-- Top-right corner bracket -->
+        <a-entity position="0.435 0.34 -0.55">
+          <a-box position="0.008 0 0" width="0.002" height="0.045" depth="0.001" color="#00ff55" material="emissive:#00ff55;emissiveIntensity:1"></a-box>
+          <a-box position="-0.01 0.021 0" width="0.04" height="0.002" depth="0.001" color="#00ff55" material="emissive:#00ff55;emissiveIntensity:1"></a-box>
+        </a-entity>
+        <!-- Bottom-right corner bracket -->
+        <a-entity position="0.435 -0.34 -0.55">
+          <a-box position="0.008 0 0" width="0.002" height="0.045" depth="0.001" color="#00ff55" material="emissive:#00ff55;emissiveIntensity:1"></a-box>
+          <a-box position="-0.01 -0.021 0" width="0.04" height="0.002" depth="0.001" color="#00ff55" material="emissive:#00ff55;emissiveIntensity:1"></a-box>
+        </a-entity>
+        <!-- "Distraction: ON" label top-left of view -->
+        <a-text id="vr-label"
+          value="Distraction: ON&#10;Phone detected"
+          position="-0.44 0.31 -0.55"
+          align="left"
+          width="0.8"
+          color="#ff3333"
+          wrap-count="18"
+          font="https://cdn.aframe.io/fonts/Exo2Bold.fnt">
+        </a-text>
+      </a-entity>
+
+    </a-camera>
+  </a-entity>
+
+</a-scene>
+
+<!-- Enter VR button (custom) -->
+<button id="enter-vr-btn" style="
+  display:none;
+  position:fixed; bottom:20px; right:20px;
+  padding:12px 22px;
+  background:rgba(0,0,0,0.6);
+  border:1px solid rgba(255,255,255,0.5);
+  color:#fff;
+  font-family:sans-serif;
+  font-size:15px;
+  border-radius:6px;
+  cursor:pointer;
+  z-index:10000;">
+  Enter VR
+</button>
+
+<script>
+// ─── Phone Screen ────────────────────────────────────────────────────────────
+const canvas = document.getElementById('phone-canvas');
+const ctx = canvas.getContext('2d');
+
+function drawPhone(dim = 0) {
+  const a = 1 - dim;
+  ctx.clearRect(0, 0, 256, 512);
+
+  // BG
+  ctx.fillStyle = '#0d1117';
+  ctx.fillRect(0, 0, 256, 512);
+
+  ctx.globalAlpha = a;
+
+  // Status bar
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, 256, 22);
+  ctx.fillStyle = '#aaa';
+  ctx.font = '10px monospace';
+  ctx.fillText('9:41', 8, 15);
+  ctx.fillText('▓▓▓', 210, 15);
+
+  // Notification badge
+  ctx.fillStyle = '#e74c3c';
+  ctx.beginPath(); ctx.arc(240, 11, 9, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.fillText('3', 237, 15);
+
+  // Feed post 1
+  ctx.fillStyle = '#161b22';
+  ctx.fillRect(8, 28, 240, 108);
+  ctx.fillStyle = '#0f3460';
+  ctx.fillRect(8, 28, 240, 32);
+  ctx.fillStyle = '#e94560';
+  ctx.beginPath(); ctx.arc(24, 44, 10, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#eee';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('Alex Chen', 40, 48);
+  ctx.fillStyle = '#888';
+  ctx.font = '9px sans-serif';
+  ctx.fillText('2 min ago', 40, 57);
+  // Image
+  ctx.fillStyle = '#1c3a6e';
+  ctx.fillRect(8, 60, 240, 72);
+  ctx.fillStyle = '#4a9eff';
+  ctx.fillRect(14, 66, 100, 60);
+  ctx.fillStyle = '#2a5a9e';
+  ctx.fillRect(122, 66, 120, 60);
+
+  // Feed post 2
+  ctx.fillStyle = '#161b22';
+  ctx.fillRect(8, 144, 240, 90);
+  ctx.fillStyle = '#1a4a3a';
+  ctx.fillRect(8, 144, 240, 32);
+  ctx.fillStyle = '#2ecc71';
+  ctx.beginPath(); ctx.arc(24, 160, 10, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#eee';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('Sarah K.', 40, 164);
+  ctx.fillStyle = '#888';
+  ctx.font = '9px sans-serif';
+  ctx.fillText('Just now • 🔥', 40, 173);
+  // Post text
+  ctx.fillStyle = '#ccc';
+  ctx.font = '10px sans-serif';
+  ctx.fillText('Can't believe this view!! 😍', 14, 200);
+  ctx.fillStyle = '#888';
+  ctx.fillText('❤ 142   💬 18   ↗', 14, 218);
+
+  // Feed post 3
+  ctx.fillStyle = '#161b22';
+  ctx.fillRect(8, 242, 240, 100);
+  ctx.fillStyle = '#3a1a4a';
+  ctx.fillRect(8, 242, 240, 32);
+  ctx.fillStyle = '#9b59b6';
+  ctx.beginPath(); ctx.arc(24, 258, 10, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#eee';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('UrbanPics', 40, 262);
+  ctx.fillStyle = '#1c3a6e';
+  ctx.fillRect(8, 274, 240, 64);
+  ctx.fillStyle = '#6a3aaa';
+  ctx.fillRect(14, 280, 110, 52);
+  ctx.fillStyle = '#3a6acc';
+  ctx.fillRect(132, 280, 110, 52);
+
+  // Nav bar
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 488, 256, 24);
+  ctx.fillStyle = '#4a9eff';
+  ctx.font = '14px sans-serif';
+  ctx.fillText('⌂', 30, 504);
+  ctx.fillStyle = '#888';
+  ctx.fillText('🔍', 90, 504);
+  ctx.fillText('♡', 150, 504);
+  ctx.fillText('👤', 210, 504);
+
+  ctx.globalAlpha = 1;
+
+  // Screen off overlay when fully dimmed
+  if (dim > 0.85) {
+    ctx.fillStyle = `rgba(0,0,0,${(dim - 0.85) / 0.15})`;
+    ctx.fillRect(0, 0, 256, 512);
+  }
+}
+
+drawPhone(0);
+
+// ─── Scene State ─────────────────────────────────────────────────────────────
+const car       = document.getElementById('car');
+const phoneHand = document.getElementById('phone-hand');
+const phoneBody = document.getElementById('phone-body');
+const phoneScr  = document.getElementById('phone-screen');
+const phoneLgt  = document.getElementById('phone-light');
+const vrHud     = document.getElementById('vr-hud');
+
+// DOM overlay elements
+const hud        = document.getElementById('hud');
+const hudLabel   = document.getElementById('distraction-label');
+const hudRCue    = document.getElementById('right-cue');
+const hudCorner  = document.getElementById('corner-bracket');
+const replayBtn  = document.getElementById('replay-btn');
+
+let animId = null;
+let t0     = null;
+let inVR   = false;
+
+const CAR_START_X = 55;
+const CAR_END_X   = -55;
+const SCENE_DUR   = 8.0;  // seconds for full pass
+
+function lerp(a, b, t)  { return a + (b - a) * t; }
+function clamp(v, lo, hi){ return v < lo ? lo : v > hi ? hi : v; }
+function smoothstep(t)   { t = clamp(t,0,1); return t*t*(3-2*t); }
+
+function setDim(dim) {
+  // Phone scale shrinks slightly
+  const s = lerp(1, 0.75, dim);
+  phoneHand.setAttribute('scale', `${s} ${s} ${s}`);
+
+  // Phone screen opacity
+  const op = lerp(1, 0.05, dim);
+  phoneScr.setAttribute('material',
+    `src: #phone-canvas; opacity: ${op}; transparent: true; roughness: 0.05; emissive: #224488; emissiveIntensity: ${lerp(0.15, 0, dim)}`);
+  drawPhone(dim);
+
+  // Phone light dims
+  phoneLgt.setAttribute('intensity', lerp(0.35, 0, dim));
+
+  // VR HUD cue
+  const cueOn = dim > 0.05;
+  vrHud.setAttribute('visible', cueOn);
+
+  // DOM HUD (flat mode + dom-overlay VR mode)
+  if (!inVR || document.getElementById('hud').style.display !== 'none') {
+    hudLabel.style.opacity  = dim;
+    hudRCue.style.opacity   = dim;
+    hudCorner.style.opacity = dim;
+  }
+}
+
+function resetScene() {
+  car.setAttribute('position', `${CAR_START_X} 0 -5`);
+  phoneHand.setAttribute('scale', '1 1 1');
+  phoneHand.setAttribute('position', '0.24 -0.31 -0.46');
+  setDim(0);
+  replayBtn.style.display = 'none';
+}
+
+function tick(now) {
+  if (!t0) t0 = now;
+  const elapsed = (now - t0) / 1000;
+  const progress = clamp(elapsed / SCENE_DUR, 0, 1);
+
+  // Car position interpolation (with ease-in for initial acceleration)
+  const carT = smoothstep(progress);
+  const carX = lerp(CAR_START_X, CAR_END_X, carT);
+  car.setAttribute('position', `${carX} 0 -5`);
+
+  // Cue triggers when car is between X=12 and X=-12 (crossing zone ± 12m)
+  const triggerWidth = 14;
+  const distFromCenter = Math.abs(carX);
+  let dim = 0;
+  if (distFromCenter < triggerWidth) {
+    dim = smoothstep(1 - distFromCenter / triggerWidth);
+  }
+  setDim(dim);
+
+  if (elapsed < SCENE_DUR + 1.5) {
+    animId = requestAnimationFrame(tick);
+  } else {
+    // Scene done
+    resetScene();
+    replayBtn.style.display = 'block';
+    animId = null;
+    t0 = null;
+    // Auto-loop after 3s
+    setTimeout(startScene, 3000);
+  }
+}
+
+function startScene() {
+  if (animId) cancelAnimationFrame(animId);
+  resetScene();
+  t0 = null;
+  animId = requestAnimationFrame(tick);
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+const scene = document.querySelector('a-scene');
+scene.addEventListener('loaded', () => {
+  hud.style.display = 'block';
+  setTimeout(startScene, 1800);
+});
+
+scene.addEventListener('enter-vr', () => {
+  inVR = true;
+  hud.style.display = 'block';  // dom-overlay will render it
+});
+scene.addEventListener('exit-vr', () => {
+  inVR = false;
+  hud.style.display = 'block';
+});
+
+replayBtn.addEventListener('click', startScene);
+scene.canvas && scene.canvas.addEventListener('click', () => {
+  if (!animId) startScene();
+});
+
+// Traffic light cycle: starts RED (car runs through)
+// After car passes, switch to green for crossing
+let tlPhase = 'red';
+const tlRed   = document.getElementById('tl-red');
+const tlAmber = document.getElementById('tl-amber');
+const tlGreen = document.getElementById('tl-green');
+
+function setTrafficLight(phase) {
+  tlRed.setAttribute('material',   `color: ${phase==='red'   ? '#ff2200':'#330000'}; emissive: ${phase==='red'   ? '#ff2200':'#000'}; emissiveIntensity: ${phase==='red'?0.8:0}`);
+  tlAmber.setAttribute('material', `color: ${phase==='amber' ? '#ff9900':'#332200'}; emissive: ${phase==='amber' ? '#ff9900':'#000'}; emissiveIntensity: ${phase==='amber'?0.8:0}`);
+  tlGreen.setAttribute('material', `color: ${phase==='green' ? '#00dd44':'#003311'}; emissive: ${phase==='green' ? '#00dd44':'#000'}; emissiveIntensity: ${phase==='green'?0.8:0}`);
+}
+setTrafficLight('red');
+
+// Cycle traffic light in sync with car
+setInterval(() => {
+  if (animId && t0) {
+    const elapsed = (performance.now() - t0) / 1000;
+    if (elapsed < 7) setTrafficLight('red');
+    else if (elapsed < 8.5) setTrafficLight('amber');
+    else setTrafficLight('green');
+  } else {
+    setTrafficLight('green');
+  }
+}, 500);
+</script>
+</body>
+</html>
