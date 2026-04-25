@@ -86,10 +86,6 @@
 <body>
 
 <div id="hud">
-  <div id="distraction-label">
-    Distraction: ON<br>
-    <span style="font-size:.82em;color:#ff6644">● Phone detected</span>
-  </div>
   <div id="left-bar"></div>
   <div id="left-glow"></div>
   <div id="br-tl"></div>
@@ -133,11 +129,6 @@
   <a-box position="0 -0.01 -7" width="260" height="0.02" depth="7"
     color="#1c1c1c" receive-shadow="true"></a-box>
 
-  <!-- Centre line (yellow double) along X -->
-  <a-box position="0 0.008 -7"    width="260" height="0.01" depth="0.08"
-    color="#e8c000" material="emissive:#e8c000;emissiveIntensity:0.18"></a-box>
-  <a-box position="0 0.008 -6.78" width="260" height="0.01" depth="0.06"
-    color="#e8c000" material="emissive:#e8c000;emissiveIntensity:0.12"></a-box>
 
   <!-- Road edge lines -->
   <a-box position="0 0.008 -3.55"  width="260" height="0.01" depth="0.07"
@@ -413,13 +404,6 @@
           color="#ff2200" material="emissive:#ff2200;emissiveIntensity:3.5"></a-box>
         <a-box position="-0.438 -0.418 -0.60" width="0.048" height="0.003" depth="0.001"
           color="#ff2200" material="emissive:#ff2200;emissiveIntensity:3.5"></a-box>
-        <!-- Label top-left -->
-        <a-text value="Distraction: ON&#10;&#9679; Phone detected"
-          position="-0.46 0.36 -0.60"
-          align="left" width="0.90"
-          color="#ff2200"
-          wrap-count="20">
-        </a-text>
       </a-entity>
 
     </a-camera>
@@ -620,7 +604,6 @@ const camEl      = document.getElementById('cam');
 
 // DOM HUD
 const hudEl   = document.getElementById('hud');
-const labelEl = document.getElementById('distraction-label');
 const leftBar = document.getElementById('left-bar');
 const leftGlw = document.getElementById('left-glow');
 const brTL    = document.getElementById('br-tl');
@@ -688,7 +671,6 @@ function applyState(carX, cueAlpha, dim, shake, dt) {
   }
 
   // ── DOM HUD ──
-  labelEl.style.opacity = cueAlpha;
   leftBar.style.opacity = cueAlpha;
   leftGlw.style.opacity = cueAlpha;
   brTL.style.opacity    = cueAlpha;
