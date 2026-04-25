@@ -104,6 +104,7 @@
 ═══════════════════════════════════════════════════════════════ -->
 <a-scene
   id="scene"
+  crossguard
   webxr="requiredFeatures: local-floor; optionalFeatures: dom-overlay; overlayElement: #hud"
   renderer="antialias: true; colorManagement: true; physicallyCorrectLights: true"
   shadow="type: pcfsoft; enabled: true"
@@ -617,110 +618,6 @@ function distToPlayer(carX) {
   return Math.sqrt(dx * dx + dz * dz);
 }
 
-let animId = null, t0 = null, lastNow = null, pulseT = 0;
-
-function applyState(carX, cueAlpha, dim, shake, dt) {
-  // Car
-  carEl.setAttribute('position', `${carX} 0 ${CAR_Z}`);
-
-  // ── Phone blur / scale ──
-  const s = lerp(1.0, 0.75, dim);
-  phonePivot.setAttribute('scale', `${s} ${s} ${s}`);
-
-  const emissI = lerp(0.35, 0.08, dim);
-  phoneScr.setAttribute('material',
-    `src:#phone-canvas; roughness:0.02; emissive:#1133bb; emissiveIntensity:${emissI}`);
-  scrGlow.setAttribute('intensity', lerp(0.45, 0.08, dim));
-  drawPhone(dim);
-
-  // ── DOM HUD ──
-  leftBar.style.opacity = cueAlpha;
-  leftGlw.style.opacity = cueAlpha;
-  brTL.style.opacity    = cueAlpha;
-  brBL.style.opacity    = cueAlpha;
-
-  // Pulse dom cue elements
-  const pulsing = cueAlpha > 0.05;
-  [leftBar, brTL, brBL].forEach(el => {
-    pulsing ? el.classList.add('pulse') : el.classList.remove('pulse');
-  });
-
-  // Danger vignette when car < 12 m
-  const dist = distToPlayer(carX);
-  const vigA = smooth(clamp((12 - dist) / 10, 0, 1)) * 0.75;
-  dangerV.style.opacity = vigA;
-
-  // ── Camera shake ──
-  if (shake > 0) {
-    const sx = (Math.random() - 0.5) * 0.008 * shake;
-    const sy = (Math.random() - 0.5) * 0.005 * shake;
-    camEl.setAttribute('position', `0 ${1.65 + sy} ${sx}`);
-  } else {
-    camEl.setAttribute('position', '0 1.65 0');
-  }
-}
-
-function resetAll() {
-  applyState(CAR_X_START, 0, 0, 0, 0);
-  pulseT = 0;
-  dangerV.style.opacity = 0;
-  camEl.setAttribute('position', '0 1.65 0');
-  drawPhone(0);
-  setLight('red');
-}
-
-function tick(now) {
-  const dt = lastNow ? Math.min((now - lastNow) / 1000, 0.05) : 0;
-  lastNow = now;
-  if (!t0) t0 = now;
-
-  const elapsed = (now - t0) / 1000;
-  const prog    = clamp(elapsed / DURATION, 0, 1);
-
-  // Linear car movement (constant city speed ≈ 48 km/h over 138 m in 9.5 s)
-  const carX = lerp(CAR_X_START, CAR_X_END, prog);
-  const dist = distToPlayer(carX);
-
-  // ── Cue alpha: appears at 100 m, ramps to 1 by 60 m ──
-  const cueAlpha = smooth(clamp((CUE_DIST - dist) / (CUE_DIST - 60), 0, 1));
-
-  // ── Phone blur: starts at 40 m, full at 9 m, releases after car passes ──
-  let dim = 0;
-  const carPassed = carX > 4;
-  if (!carPassed) {
-    dim = smooth(clamp((DIM_START_DIST - dist) / (DIM_START_DIST - DIM_FULL_DIST), 0, 1));
-  } else {
-    // Quickly clear after car passes
-    const clearT = clamp((carX - 4) / 6, 0, 1);
-    dim = smooth(1 - clearT) * smooth(clamp((DIM_START_DIST - distToPlayer(4)) / (DIM_START_DIST - DIM_FULL_DIST), 0, 1));
-  }
-
-  // ── Camera shake: only when car is very close ──
-  const shake = clamp((SHAKE_DIST - dist) / SHAKE_DIST, 0, 1) * (carPassed ? clamp(1 - (carX - 4) / 5, 0, 1) : 1);
-
-  applyState(carX, cueAlpha, dim, shake, dt);
-
-  // Traffic light
-  if (elapsed > DURATION - 1.8) setLight('green');
-  else if (elapsed > DURATION - 2.8) setLight('amber');
-  else setLight('red');
-
-  if (elapsed < DURATION + 1.2) {
-    animId = requestAnimationFrame(tick);
-  } else {
-    lastNow = null; animId = null; t0 = null;
-    resetAll();
-    setTimeout(startScene, 3000);
-  }
-}
-
-function startScene() {
-  if (animId) cancelAnimationFrame(animId);
-  lastNow = null; t0 = null; pulseT = 0;
-  resetAll();
-  animId = requestAnimationFrame(tick);
-}
-
 function setLight(phase) {
   const on  = c => `color:${c};emissive:${c};emissiveIntensity:1.5`;
   const off = c => `color:${c};emissiveIntensity:0`;
@@ -730,13 +627,115 @@ function setLight(phase) {
   tlRGlow.setAttribute('intensity', phase === 'red' ? '0.9' : '0');
 }
 
-document.querySelector('a-scene').addEventListener('loaded', () => {
-  hudEl.style.display = 'block';
-  resetAll();
-  setTimeout(startScene, 2000);
-});
-document.querySelector('a-scene').addEventListener('enter-vr', () => {
-  hudEl.style.display = 'block';
+function applyState(carX, cueAlpha, dim, shake) {
+  carEl.setAttribute('position', `${carX} 0 ${CAR_Z}`);
+
+  const s = lerp(1.0, 0.75, dim);
+  phonePivot.setAttribute('scale', `${s} ${s} ${s}`);
+
+  const emissI = lerp(0.35, 0.08, dim);
+  phoneScr.setAttribute('material',
+    `src:#phone-canvas; roughness:0.02; emissive:#1133bb; emissiveIntensity:${emissI}`);
+  scrGlow.setAttribute('intensity', lerp(0.45, 0.08, dim));
+  drawPhone(dim);
+
+  leftBar.style.opacity = cueAlpha;
+  leftGlw.style.opacity = cueAlpha;
+  brTL.style.opacity    = cueAlpha;
+  brBL.style.opacity    = cueAlpha;
+
+  const pulsing = cueAlpha > 0.05;
+  [leftBar, brTL, brBL].forEach(el => {
+    pulsing ? el.classList.add('pulse') : el.classList.remove('pulse');
+  });
+
+  const dist = distToPlayer(carX);
+  dangerV.style.opacity = smooth(clamp((12 - dist) / 10, 0, 1)) * 0.75;
+
+  if (shake > 0) {
+    camEl.setAttribute('position',
+      `0 ${1.65 + (Math.random()-0.5)*0.005*shake} ${(Math.random()-0.5)*0.008*shake}`);
+  } else {
+    camEl.setAttribute('position', '0 1.65 0');
+  }
+}
+
+function resetAll() {
+  carEl.setAttribute('position', `${CAR_X_START} 0 ${CAR_Z}`);
+  phonePivot.setAttribute('scale', '1 1 1');
+  drawPhone(0);
+  leftBar.style.opacity = leftGlw.style.opacity = brTL.style.opacity = brBL.style.opacity = 0;
+  dangerV.style.opacity = 0;
+  camEl.setAttribute('position', '0 1.65 0');
+  setLight('red');
+}
+
+// ── A-Frame component: tick runs on every XR frame (works in VR/flat) ──
+AFRAME.registerComponent('crossguard', {
+  init() {
+    this.t0      = null;
+    this.running = false;
+    this.looping = false;
+
+    this.el.addEventListener('loaded', () => {
+      hudEl.style.display = 'block';
+      resetAll();
+      setTimeout(() => this.startScene(), 2000);
+    });
+
+    // Restart cleanly whenever the user enters VR
+    this.el.addEventListener('enter-vr', () => {
+      hudEl.style.display = 'block';
+      this.startScene();
+    });
+  },
+
+  startScene() {
+    this.t0      = null;
+    this.running = true;
+    this.looping = false;
+    resetAll();
+  },
+
+  tick(time, deltaMs) {
+    if (!this.running) return;
+
+    if (!this.t0) this.t0 = time;
+    const elapsed = (time - this.t0) / 1000;
+    const prog    = clamp(elapsed / DURATION, 0, 1);
+    const dt      = Math.min(deltaMs / 1000, 0.05);
+
+    const carX = lerp(CAR_X_START, CAR_X_END, prog);
+    const dist = distToPlayer(carX);
+
+    const cueAlpha = smooth(clamp((CUE_DIST - dist) / (CUE_DIST - 60), 0, 1));
+
+    const carPassed = carX > 4;
+    let dim = 0;
+    if (!carPassed) {
+      dim = smooth(clamp((DIM_START_DIST - dist) / (DIM_START_DIST - DIM_FULL_DIST), 0, 1));
+    } else {
+      const clearT = clamp((carX - 4) / 6, 0, 1);
+      dim = smooth(1 - clearT) *
+            smooth(clamp((DIM_START_DIST - distToPlayer(4)) / (DIM_START_DIST - DIM_FULL_DIST), 0, 1));
+    }
+
+    const shake = clamp((SHAKE_DIST - dist) / SHAKE_DIST, 0, 1) *
+                  (carPassed ? clamp(1 - (carX - 4) / 5, 0, 1) : 1);
+
+    applyState(carX, cueAlpha, dim, shake);
+
+    if (elapsed > DURATION - 1.8) setLight('green');
+    else if (elapsed > DURATION - 2.8) setLight('amber');
+    else setLight('red');
+
+    if (elapsed >= DURATION + 1.2 && !this.looping) {
+      this.looping = true;
+      this.running = false;
+      resetAll();
+      setTimeout(() => this.startScene(), 3000);
+    }
+  }
 });
 </script>
 </body>
