@@ -382,19 +382,6 @@
           color="#3355cc" intensity="0.45" distance="0.60"></a-light>
       </a-entity><!-- /phone-pivot -->
 
-      <!-- ── VR CUE (camera-attached, LEFT side — matches car direction) — RED ── -->
-      <a-entity id="vr-cue" visible="false">
-        <!-- Top-LEFT bracket -->
-        <a-box position="-0.458  0.395 -0.60" width="0.003" height="0.048" depth="0.001"
-          color="#ff2200" material="emissive:#ff2200;emissiveIntensity:3.5"></a-box>
-        <a-box position="-0.438  0.418 -0.60" width="0.048" height="0.003" depth="0.001"
-          color="#ff2200" material="emissive:#ff2200;emissiveIntensity:3.5"></a-box>
-        <!-- Bottom-LEFT bracket -->
-        <a-box position="-0.458 -0.395 -0.60" width="0.003" height="0.048" depth="0.001"
-          color="#ff2200" material="emissive:#ff2200;emissiveIntensity:3.5"></a-box>
-        <a-box position="-0.438 -0.418 -0.60" width="0.048" height="0.003" depth="0.001"
-          color="#ff2200" material="emissive:#ff2200;emissiveIntensity:3.5"></a-box>
-      </a-entity>
 
     </a-camera>
   </a-entity>
@@ -589,7 +576,6 @@ const carEl      = document.getElementById('car');
 const phonePivot = document.getElementById('phone-pivot');
 const phoneScr   = document.getElementById('phone-screen');
 const scrGlow    = document.getElementById('screen-glow');
-const vrCue      = document.getElementById('vr-cue');
 const camEl      = document.getElementById('cam');
 
 // DOM HUD
@@ -646,19 +632,6 @@ function applyState(carX, cueAlpha, dim, shake, dt) {
     `src:#phone-canvas; roughness:0.02; emissive:#1133bb; emissiveIntensity:${emissI}`);
   scrGlow.setAttribute('intensity', lerp(0.45, 0.08, dim));
   drawPhone(dim);
-
-  // ── VR HUD cue (red, camera-attached) ──
-  vrCue.setAttribute('visible', cueAlpha > 0.02);
-
-  // Pulse scale on VR cue bar
-  if (cueAlpha > 0.02) {
-    pulseT += dt * 4.8;
-    const p = 0.65 + 0.35 * Math.abs(Math.sin(pulseT));
-    vrCue.querySelector
-      ? null
-      : null;
-    vrCue.setAttribute('scale', `${p} 1 1`);
-  }
 
   // ── DOM HUD ──
   leftBar.style.opacity = cueAlpha;
