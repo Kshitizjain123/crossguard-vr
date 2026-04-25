@@ -13,7 +13,7 @@
     #hud {
       position: fixed; inset: 0;
       pointer-events: none;
-      display: none;
+      display: block;       /* always visible so dom-overlay works immediately */
       z-index: 9999;
     }
 
@@ -383,6 +383,29 @@
           color="#3355cc" intensity="0.45" distance="0.60"></a-light>
       </a-entity><!-- /phone-pivot -->
 
+      <!-- VR-only left-edge cue — camera-attached, hidden in flat mode -->
+      <a-entity id="vr-cue-left" visible="false">
+        <!-- Solid red bar at far left of FOV -->
+        <a-plane position="-0.50 0 -0.60"
+          width="0.010" height="0.95"
+          material="color:#ff2200;opacity:1;transparent:true;emissive:#ff2200;emissiveIntensity:3.5;side:double">
+        </a-plane>
+        <!-- Soft glow spread inward -->
+        <a-plane position="-0.47 0 -0.602"
+          width="0.09" height="0.95"
+          material="color:#ff2200;opacity:0.18;transparent:true;emissive:#ff2200;emissiveIntensity:2;side:double">
+        </a-plane>
+        <!-- Top-left corner bracket -->
+        <a-box position="-0.497  0.45 -0.60" width="0.003" height="0.05" depth="0.001"
+          color="#ff2200" material="emissive:#ff2200;emissiveIntensity:4"></a-box>
+        <a-box position="-0.473  0.474 -0.60" width="0.05" height="0.003" depth="0.001"
+          color="#ff2200" material="emissive:#ff2200;emissiveIntensity:4"></a-box>
+        <!-- Bottom-left corner bracket -->
+        <a-box position="-0.497 -0.45 -0.60" width="0.003" height="0.05" depth="0.001"
+          color="#ff2200" material="emissive:#ff2200;emissiveIntensity:4"></a-box>
+        <a-box position="-0.473 -0.474 -0.60" width="0.05" height="0.003" depth="0.001"
+          color="#ff2200" material="emissive:#ff2200;emissiveIntensity:4"></a-box>
+      </a-entity>
 
     </a-camera>
   </a-entity>
@@ -577,6 +600,7 @@ const carEl      = document.getElementById('car');
 const phonePivot = document.getElementById('phone-pivot');
 const phoneScr   = document.getElementById('phone-screen');
 const scrGlow    = document.getElementById('screen-glow');
+const vrCueLeft  = document.getElementById('vr-cue-left');
 const camEl      = document.getElementById('cam');
 
 // DOM HUD
@@ -627,7 +651,7 @@ function setLight(phase) {
   tlRGlow.setAttribute('intensity', phase === 'red' ? '0.9' : '0');
 }
 
-function applyState(carX, cueAlpha, dim, shake) {
+function applyState(carX, cueAlpha, dim, shake, inVR) {
   carEl.setAttribute('position', `${carX} 0 ${CAR_Z}`);
 
   const s = lerp(1.0, 0.75, dim);
@@ -639,18 +663,26 @@ function applyState(carX, cueAlpha, dim, shake) {
   scrGlow.setAttribute('intensity', lerp(0.45, 0.08, dim));
   drawPhone(dim);
 
-  leftBar.style.opacity = cueAlpha;
-  leftGlw.style.opacity = cueAlpha;
-  brTL.style.opacity    = cueAlpha;
-  brBL.style.opacity    = cueAlpha;
-
-  const pulsing = cueAlpha > 0.05;
-  [leftBar, brTL, brBL].forEach(el => {
-    pulsing ? el.classList.add('pulse') : el.classList.remove('pulse');
-  });
+  if (inVR) {
+    // In VR: use camera-attached 3D cue — reliable on Quest
+    vrCueLeft.setAttribute('visible', cueAlpha > 0.02);
+    // Hide DOM cue so it doesn't interfere
+    leftBar.style.opacity = leftGlw.style.opacity = brTL.style.opacity = brBL.style.opacity = 0;
+  } else {
+    // Flat mode: use DOM overlay cue
+    vrCueLeft.setAttribute('visible', false);
+    leftBar.style.opacity = cueAlpha;
+    leftGlw.style.opacity = cueAlpha;
+    brTL.style.opacity    = cueAlpha;
+    brBL.style.opacity    = cueAlpha;
+    const pulsing = cueAlpha > 0.05;
+    [leftBar, brTL, brBL].forEach(el => {
+      pulsing ? el.classList.add('pulse') : el.classList.remove('pulse');
+    });
+  }
 
   const dist = distToPlayer(carX);
-  dangerV.style.opacity = smooth(clamp((12 - dist) / 10, 0, 1)) * 0.75;
+  dangerV.style.opacity = inVR ? 0 : smooth(clamp((12 - dist) / 10, 0, 1)) * 0.75;
 
   if (shake > 0) {
     camEl.setAttribute('position',
@@ -666,6 +698,7 @@ function resetAll() {
   drawPhone(0);
   leftBar.style.opacity = leftGlw.style.opacity = brTL.style.opacity = brBL.style.opacity = 0;
   dangerV.style.opacity = 0;
+  vrCueLeft.setAttribute('visible', false);
   camEl.setAttribute('position', '0 1.65 0');
   setLight('red');
 }
@@ -723,7 +756,8 @@ AFRAME.registerComponent('crossguard', {
     const shake = clamp((SHAKE_DIST - dist) / SHAKE_DIST, 0, 1) *
                   (carPassed ? clamp(1 - (carX - 4) / 5, 0, 1) : 1);
 
-    applyState(carX, cueAlpha, dim, shake);
+    const inVR = this.el.is('vr-mode');
+    applyState(carX, cueAlpha, dim, shake, inVR);
 
     if (elapsed > DURATION - 1.8) setLight('green');
     else if (elapsed > DURATION - 2.8) setLight('amber');
