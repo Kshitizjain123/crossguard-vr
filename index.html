@@ -41,15 +41,6 @@
       opacity: 0;
       transition: opacity 0.25s ease;
     }
-    /* Red glow spread (fans rightward from left edge) */
-    #left-glow {
-      position: absolute;
-      left: 10px; top: 0; bottom: 0;
-      width: 110px;
-      background: linear-gradient(to right, #ff220044, transparent);
-      opacity: 0;
-      transition: opacity 0.25s ease;
-    }
     /* Corner brackets — top-left and bottom-left */
     #br-tl {
       position: absolute; top: 18px; left: 18px;
@@ -87,7 +78,6 @@
 
 <div id="hud">
   <div id="left-bar"></div>
-  <div id="left-glow"></div>
   <div id="br-tl"></div>
   <div id="br-bl"></div>
   <div id="danger-vignette"></div>
@@ -389,11 +379,6 @@
           width="0.012" height="0.82"
           material="color:#ff2200;opacity:1;transparent:true;emissive:#ff2200;emissiveIntensity:3.5;side:double">
         </a-plane>
-        <!-- Soft glow spread (fans inward to the right) -->
-        <a-plane position="-0.43 0 -0.602"
-          width="0.12" height="0.82"
-          material="color:#ff2200;opacity:0.12;transparent:true;emissive:#ff2200;emissiveIntensity:2;side:double">
-        </a-plane>
         <!-- Top-LEFT bracket -->
         <a-box position="-0.458  0.395 -0.60" width="0.003" height="0.048" depth="0.001"
           color="#ff2200" material="emissive:#ff2200;emissiveIntensity:3.5"></a-box>
@@ -605,7 +590,6 @@ const camEl      = document.getElementById('cam');
 // DOM HUD
 const hudEl   = document.getElementById('hud');
 const leftBar = document.getElementById('left-bar');
-const leftGlw = document.getElementById('left-glow');
 const brTL    = document.getElementById('br-tl');
 const brBL    = document.getElementById('br-bl');
 const dangerV = document.getElementById('danger-vignette');
@@ -672,7 +656,6 @@ function applyState(carX, cueAlpha, dim, shake, dt) {
 
   // ── DOM HUD ──
   leftBar.style.opacity = cueAlpha;
-  leftGlw.style.opacity = cueAlpha;
   brTL.style.opacity    = cueAlpha;
   brBL.style.opacity    = cueAlpha;
 
