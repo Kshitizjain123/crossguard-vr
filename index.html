@@ -140,7 +140,9 @@
   <!-- ════════════ ZEBRA CROSSING ════════════
        Stripes run along Z (crossing direction), spaced along X.
        Each stripe: 0.9 wide (X), 7 deep (Z, covering z=−3.5 to −10.5) -->
-  <a-entity position="0 0.014 -7">
+  <a-light id="crossing-warn-light" type="point" position="0 2.5 -7"
+    color="#ffbb00" intensity="0" distance="14" decay="2"></a-light>
+  <a-entity id="zebra" position="0 0.014 -7">
     <a-box position="-4.5 0 0" width="0.88" height="0.01" depth="7" color="#f2f2f2"></a-box>
     <a-box position="-3.0 0 0" width="0.88" height="0.01" depth="7" color="#f2f2f2"></a-box>
     <a-box position="-1.5 0 0" width="0.88" height="0.01" depth="7" color="#f2f2f2"></a-box>
@@ -602,6 +604,9 @@ const phoneScr   = document.getElementById('phone-screen');
 const scrGlow    = document.getElementById('screen-glow');
 const vrCueLeft  = document.getElementById('vr-cue-left');
 const camEl      = document.getElementById('cam');
+const zebraEl    = document.getElementById('zebra');
+const crossLight = document.getElementById('crossing-warn-light');
+let stripeMeshes = null;
 
 // DOM HUD
 const hudEl   = document.getElementById('hud');
@@ -690,6 +695,21 @@ function applyState(carX, cueAlpha, dim, shake, inVR) {
   } else {
     camEl.setAttribute('position', '0 1.65 0');
   }
+
+  // Crossing glow — ramps in with cueAlpha (car under 100 m)
+  crossLight.setAttribute('light', {intensity: cueAlpha * 4});
+  if (!stripeMeshes) {
+    const boxes = Array.from(zebraEl.querySelectorAll('a-box'));
+    const ready = boxes.map(b => b.getObject3D('mesh')).filter(Boolean);
+    if (ready.length === boxes.length) stripeMeshes = ready;
+  }
+  if (stripeMeshes) {
+    const emC = new THREE.Color(0xff9900);
+    stripeMeshes.forEach(m => {
+      m.material.emissive.copy(emC);
+      m.material.emissiveIntensity = cueAlpha * 1.4;
+    });
+  }
 }
 
 function resetAll() {
@@ -698,6 +718,8 @@ function resetAll() {
   drawPhone(0);
   leftBar.style.opacity = leftGlw.style.opacity = brTL.style.opacity = brBL.style.opacity = 0;
   dangerV.style.opacity = 0;
+  crossLight.setAttribute('light', {intensity: 0});
+  if (stripeMeshes) stripeMeshes.forEach(m => { m.material.emissiveIntensity = 0; });
   vrCueLeft.setAttribute('visible', false);
   camEl.setAttribute('position', '0 1.65 0');
   setLight('red');
