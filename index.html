@@ -31,40 +31,40 @@
       transition: opacity 0.3s ease;
     }
 
-    /* RIGHT EDGE — solid red bar */
-    #right-bar {
+    /* LEFT EDGE — solid red bar (car comes from left) */
+    #left-bar {
       position: absolute;
-      right: 0; top: 0; bottom: 0;
+      left: 0; top: 0; bottom: 0;
       width: 10px;
       background: #ff2200;
-      box-shadow: -4px 0 28px 6px #ff2200, -22px 0 55px #ff220055;
+      box-shadow: 4px 0 28px 6px #ff2200, 22px 0 55px #ff220055;
       opacity: 0;
       transition: opacity 0.25s ease;
     }
-    /* Red glow spread */
-    #right-glow {
+    /* Red glow spread (fans rightward from left edge) */
+    #left-glow {
       position: absolute;
-      right: 10px; top: 0; bottom: 0;
+      left: 10px; top: 0; bottom: 0;
       width: 110px;
-      background: linear-gradient(to left, #ff220044, transparent);
+      background: linear-gradient(to right, #ff220044, transparent);
       opacity: 0;
       transition: opacity 0.25s ease;
     }
-    /* Corner brackets */
-    #br-tr {
-      position: absolute; top: 18px; right: 18px;
+    /* Corner brackets — top-left and bottom-left */
+    #br-tl {
+      position: absolute; top: 18px; left: 18px;
       width: 30px; height: 30px;
       border-top: 3px solid #ff2200;
-      border-right: 3px solid #ff2200;
+      border-left: 3px solid #ff2200;
       filter: drop-shadow(0 0 6px #ff2200);
       opacity: 0;
       transition: opacity 0.25s ease;
     }
-    #br-br {
-      position: absolute; bottom: 18px; right: 18px;
+    #br-bl {
+      position: absolute; bottom: 18px; left: 18px;
       width: 30px; height: 30px;
       border-bottom: 3px solid #ff2200;
-      border-right: 3px solid #ff2200;
+      border-left: 3px solid #ff2200;
       filter: drop-shadow(0 0 6px #ff2200);
       opacity: 0;
       transition: opacity 0.25s ease;
@@ -90,10 +90,10 @@
     Distraction: ON<br>
     <span style="font-size:.82em;color:#ff6644">● Phone detected</span>
   </div>
-  <div id="right-bar"></div>
-  <div id="right-glow"></div>
-  <div id="br-tr"></div>
-  <div id="br-br"></div>
+  <div id="left-bar"></div>
+  <div id="left-glow"></div>
+  <div id="br-tl"></div>
+  <div id="br-bl"></div>
   <div id="danger-vignette"></div>
 </div>
 
@@ -391,27 +391,27 @@
           color="#3355cc" intensity="0.45" distance="0.60"></a-light>
       </a-entity><!-- /phone-pivot -->
 
-      <!-- ── VR CUE (camera-attached, right side) — RED ── -->
+      <!-- ── VR CUE (camera-attached, LEFT side — matches car direction) — RED ── -->
       <a-entity id="vr-cue" visible="false">
-        <!-- Solid right bar -->
-        <a-plane position="0.465 0 -0.60"
+        <!-- Solid LEFT bar -->
+        <a-plane position="-0.465 0 -0.60"
           width="0.012" height="0.82"
           material="color:#ff2200;opacity:1;transparent:true;emissive:#ff2200;emissiveIntensity:3.5;side:double">
         </a-plane>
-        <!-- Soft glow spread -->
-        <a-plane position="0.43 0 -0.602"
+        <!-- Soft glow spread (fans inward to the right) -->
+        <a-plane position="-0.43 0 -0.602"
           width="0.12" height="0.82"
           material="color:#ff2200;opacity:0.12;transparent:true;emissive:#ff2200;emissiveIntensity:2;side:double">
         </a-plane>
-        <!-- Top-right bracket -->
-        <a-box position="0.458  0.395 -0.60" width="0.003" height="0.048" depth="0.001"
+        <!-- Top-LEFT bracket -->
+        <a-box position="-0.458  0.395 -0.60" width="0.003" height="0.048" depth="0.001"
           color="#ff2200" material="emissive:#ff2200;emissiveIntensity:3.5"></a-box>
-        <a-box position="0.438  0.418 -0.60" width="0.048" height="0.003" depth="0.001"
+        <a-box position="-0.438  0.418 -0.60" width="0.048" height="0.003" depth="0.001"
           color="#ff2200" material="emissive:#ff2200;emissiveIntensity:3.5"></a-box>
-        <!-- Bottom-right bracket -->
-        <a-box position="0.458 -0.395 -0.60" width="0.003" height="0.048" depth="0.001"
+        <!-- Bottom-LEFT bracket -->
+        <a-box position="-0.458 -0.395 -0.60" width="0.003" height="0.048" depth="0.001"
           color="#ff2200" material="emissive:#ff2200;emissiveIntensity:3.5"></a-box>
-        <a-box position="0.438 -0.418 -0.60" width="0.048" height="0.003" depth="0.001"
+        <a-box position="-0.438 -0.418 -0.60" width="0.048" height="0.003" depth="0.001"
           color="#ff2200" material="emissive:#ff2200;emissiveIntensity:3.5"></a-box>
         <!-- Label top-left -->
         <a-text value="Distraction: ON&#10;&#9679; Phone detected"
@@ -571,22 +571,41 @@ function drawPhoneUI(g) {
   g.beginPath(); g.arc(36, 672, 3.5, 0, Math.PI * 2); g.fill();
 }
 
-// Composite offscreen → main canvas with blur
+// Composite offscreen → main canvas with multi-sample radial blur
 function drawPhone(dim) {
   // 1. Draw fresh UI to offscreen
   drawPhoneUI(oc);
 
-  // 2. Composite with blur onto main canvas
+  // 2. Composite onto main canvas
   cx.clearRect(0, 0, PW, PH);
-  const blurPx = dim * 18;          // 0 → 18 px gaussian blur
-  cx.filter = blurPx > 0.3 ? `blur(${blurPx.toFixed(1)}px)` : 'none';
-  cx.drawImage(offCanvas, 0, 0);
-  cx.filter = 'none';
 
-  // 3. Slight brightness reduction (no black out — just dim)
-  if (dim > 0) {
-    cx.fillStyle = `rgba(0,0,0,${dim * 0.30})`;
+  if (dim < 0.02) {
+    // No blur — draw directly
+    cx.drawImage(offCanvas, 0, 0);
+  } else {
+    // Multi-sample radial blur: draw image at 16 angular offsets + centre.
+    // Each sample is drawn at reduced alpha so they average to full brightness.
+    // This is guaranteed visible unlike ctx.filter which WebGL textures ignore.
+    const blurR = dim * 14;   // max spread radius in canvas pixels
+    const N = 16;
+    cx.globalAlpha = 1 / (N + 1);
+    cx.drawImage(offCanvas, 0, 0);                      // centre sample
+    for (let i = 0; i < N; i++) {
+      const angle = (i / N) * Math.PI * 2;
+      cx.drawImage(offCanvas,
+        Math.cos(angle) * blurR,
+        Math.sin(angle) * blurR);
+    }
+    cx.globalAlpha = 1;
+    // Slight darkening overlay so it reads as "screen going to sleep"
+    cx.fillStyle = `rgba(0,0,0,${dim * 0.28})`;
     cx.fillRect(0, 0, PW, PH);
+  }
+
+  // 3. Force A-Frame to re-upload the canvas texture to the GPU this frame
+  const mesh = document.getElementById('phone-screen').getObject3D('mesh');
+  if (mesh && mesh.material && mesh.material.map) {
+    mesh.material.map.needsUpdate = true;
   }
 }
 drawPhone(0);
@@ -600,13 +619,13 @@ const vrCue      = document.getElementById('vr-cue');
 const camEl      = document.getElementById('cam');
 
 // DOM HUD
-const hudEl    = document.getElementById('hud');
-const labelEl  = document.getElementById('distraction-label');
-const rightBar = document.getElementById('right-bar');
-const rightGlw = document.getElementById('right-glow');
-const brTR     = document.getElementById('br-tr');
-const brBR     = document.getElementById('br-br');
-const dangerV  = document.getElementById('danger-vignette');
+const hudEl   = document.getElementById('hud');
+const labelEl = document.getElementById('distraction-label');
+const leftBar = document.getElementById('left-bar');
+const leftGlw = document.getElementById('left-glow');
+const brTL    = document.getElementById('br-tl');
+const brBL    = document.getElementById('br-bl');
+const dangerV = document.getElementById('danger-vignette');
 
 // Traffic light
 const tlR     = document.getElementById('tl-red');
@@ -669,15 +688,15 @@ function applyState(carX, cueAlpha, dim, shake, dt) {
   }
 
   // ── DOM HUD ──
-  labelEl.style.opacity  = cueAlpha;
-  rightBar.style.opacity = cueAlpha;
-  rightGlw.style.opacity = cueAlpha;
-  brTR.style.opacity     = cueAlpha;
-  brBR.style.opacity     = cueAlpha;
+  labelEl.style.opacity = cueAlpha;
+  leftBar.style.opacity = cueAlpha;
+  leftGlw.style.opacity = cueAlpha;
+  brTL.style.opacity    = cueAlpha;
+  brBL.style.opacity    = cueAlpha;
 
   // Pulse dom cue elements
   const pulsing = cueAlpha > 0.05;
-  [rightBar, brTR, brBR].forEach(el => {
+  [leftBar, brTL, brBL].forEach(el => {
     pulsing ? el.classList.add('pulse') : el.classList.remove('pulse');
   });
 
