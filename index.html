@@ -141,7 +141,7 @@
        Stripes run along Z (crossing direction), spaced along X.
        Each stripe: 0.9 wide (X), 7 deep (Z, covering z=−3.5 to −10.5) -->
   <a-light id="crossing-warn-light" type="point" position="0 2.5 -7"
-    color="#ffbb00" intensity="0" distance="14" decay="2"></a-light>
+    color="#00ff55" intensity="0" distance="14" decay="2"></a-light>
   <a-entity id="zebra" position="0 0.014 -7">
     <a-box position="-4.5 0 0" width="0.88" height="0.01" depth="7" color="#f2f2f2"></a-box>
     <a-box position="-3.0 0 0" width="0.88" height="0.01" depth="7" color="#f2f2f2"></a-box>
@@ -157,13 +157,15 @@
   <a-box position="0 0.09 -1.75" width="260" height="0.18" depth="3.5"
     color="#a8a090" receive-shadow="true"></a-box>
   <!-- Kerb near edge -->
-  <a-box position="0 0.13 -3.45" width="260" height="0.10" depth="0.18" color="#888070"></a-box>
+  <a-box id="kerb-near" position="0 0.13 -3.45" width="260" height="0.10" depth="0.18"
+    color="#888070" material="emissive:#000000;emissiveIntensity:0"></a-box>
 
   <!-- Far side: z = −10.5 → −15 -->
   <a-box position="0 0.09 -12.75" width="260" height="0.18" depth="4.5"
     color="#a8a090" receive-shadow="true"></a-box>
   <!-- Kerb far edge -->
-  <a-box position="0 0.13 -10.55" width="260" height="0.10" depth="0.18" color="#888070"></a-box>
+  <a-box id="kerb-far" position="0 0.13 -10.55" width="260" height="0.10" depth="0.18"
+    color="#888070" material="emissive:#000000;emissiveIntensity:0"></a-box>
 
   <!-- Pavement behind player -->
   <a-box position="0 0.09 3" width="260" height="0.18" depth="8" color="#a8a090"></a-box>
@@ -606,7 +608,10 @@ const vrCueLeft  = document.getElementById('vr-cue-left');
 const camEl      = document.getElementById('cam');
 const zebraEl    = document.getElementById('zebra');
 const crossLight = document.getElementById('crossing-warn-light');
+const kerbNear   = document.getElementById('kerb-near');
+const kerbFar    = document.getElementById('kerb-far');
 let stripeMeshes = null;
+let kerbMeshes   = null;
 
 // DOM HUD
 const hudEl   = document.getElementById('hud');
@@ -696,18 +701,28 @@ function applyState(carX, cueAlpha, dim, shake, inVR) {
     camEl.setAttribute('position', '0 1.65 0');
   }
 
-  // Crossing glow — ramps in with cueAlpha (car under 100 m)
+  // Crossing glow — green, ramps in with cueAlpha (car under 100 m)
   crossLight.setAttribute('light', {intensity: cueAlpha * 4});
+  const greenC = new THREE.Color(0x00ff55);
   if (!stripeMeshes) {
     const boxes = Array.from(zebraEl.querySelectorAll('a-box'));
     const ready = boxes.map(b => b.getObject3D('mesh')).filter(Boolean);
     if (ready.length === boxes.length) stripeMeshes = ready;
   }
   if (stripeMeshes) {
-    const emC = new THREE.Color(0xff9900);
     stripeMeshes.forEach(m => {
-      m.material.emissive.copy(emC);
+      m.material.emissive.copy(greenC);
       m.material.emissiveIntensity = cueAlpha * 1.4;
+    });
+  }
+  if (!kerbMeshes) {
+    const k = [kerbNear, kerbFar].map(el => el.getObject3D('mesh')).filter(Boolean);
+    if (k.length === 2) kerbMeshes = k;
+  }
+  if (kerbMeshes) {
+    kerbMeshes.forEach(m => {
+      m.material.emissive.copy(greenC);
+      m.material.emissiveIntensity = cueAlpha * 2.0;
     });
   }
 }
@@ -720,6 +735,7 @@ function resetAll() {
   dangerV.style.opacity = 0;
   crossLight.setAttribute('light', {intensity: 0});
   if (stripeMeshes) stripeMeshes.forEach(m => { m.material.emissiveIntensity = 0; });
+  if (kerbMeshes) kerbMeshes.forEach(m => { m.material.emissiveIntensity = 0; });
   vrCueLeft.setAttribute('visible', false);
   camEl.setAttribute('position', '0 1.65 0');
   setLight('red');
